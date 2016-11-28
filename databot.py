@@ -6,6 +6,7 @@ import time
 import keys
 import argparse
 from xml.etree import ElementTree
+from wxcodes import wxcode
 
 WUKey = keys.WUkey
 WUState = "MA"
@@ -29,6 +30,7 @@ WUCity = "Somerville"
 
 def getcurrentwx():
     datastring = ""
+
     r = requests.get(('http://api.wunderground.com/api/' + WUKey + '/conditions/q/' + WUState + '/' + WUCity + '.json'))
     # print r.status_code
     if (r.status_code != 200):
@@ -45,28 +47,106 @@ def getcurrentwx():
     # print "WEATHER is:" + WXjson['current_observation']['weather']
     # print "WXSHORT is:" + WXjson['current_observation']['icon']
     # print "Wind" + str(WXjson['current_observation']['wind_mph']) + " " + str(WXjson['current_observation']['wind_dir'])
-    datastring += "FEELS " + WXjson['current_observation']['feelslike_string'] + "\n"
+    if int(WXjson['current_observation']['feelslike_f']) <50:
+        datastring += "[R2000]"
+    elif int(WXjson['current_observation']['feelslike_f']) >65 and int(WXjson['current_observation']['feelslike_f']) < 85 :
+        datastring += "[G2000]"
+    else:
+        datastring += "[Y2000]"
+
+    datastring += WXjson['current_observation']['feelslike_string'] + "\n"
+
     datastring += WXjson['current_observation']['weather'] + "\n"
+
     datastring += WXjson['current_observation']['wind_dir']+" @ " + str(WXjson['current_observation']['wind_mph']) + "mph\n"
+
+    # r = requests.get(('http://api.wunderground.com/api/' + WUKey + '/alerts/q/' + WUState + '/' + WUCity + '.json'))
+    r = requests.get(('http://api.wunderground.com/api/' + WUKey + '/alerts/q/ND/Dickinson.json'))
+    # print r.status_code
+    if (r.status_code != 200):
+        return "WX ERROR"
+    alerts = r.json()
+    for entry in alerts['alerts']:
+        if entry.has_key("description"):
+            print entry["description"]
+            datastring += "[R1000]"+entry["description"] +"\n"
+            datastring += "[R800]\n"
+            datastring += "[R1000]"+entry["description"] +"\n"
+            datastring += "[R800]\n"
+            datastring += "[R1000]"+entry["description"] +"\n"
+            datastring += "[R800]\n"
+            datastring += "[R1000]"+entry["description"] +"\n"
+            datastring += "[R800]\n"
+            datastring += "[R2000]"+entry["description"] +"\n"
+
+
     return datastring
 
 
 def getforecastwx():
     datastring = ""
-    r = requests.get(('http://api.wunderground.com/api/' + WUKey + '/conditions/q/' + WUState + '/' + WUCity + '.json'))
+
+    r = requests.get(('http://api.wunderground.com/api/' + WUKey + '/hourly/q/' + WUState + '/' + WUCity + '.json'))
     # print r.status_code
     if (r.status_code != 200):
-        return "FORECAST ERROR"
+        return "HOURLY FORECAST ERROR"
 
     # print r.headers['content-type']
     # print r.encoding
     # print r.text
-    WXjson = r.json()
+    hourlyWXjson = r.json()
+    # for period in hourlyWXjson['hourly_forecast']:
+    #     print period["Description"]
     # print "START DECODE"
     # print WXjson
+    for x in xrange(1,6):
+        period=hourlyWXjson['hourly_forecast'][(x*4)]
+        if int(period['feelslike']['english']) < 40:
+            datastring += "[R1000]"
+        elif int(period['feelslike']['english']) >65 and int(period['feelslike']['english']) < 85 :
+            datastring += "[G1000]"
+        else:
+            datastring += "[Y1000]"
+        # datastring+=period['FCTTIME']['weekday_name_abbrev']
+        datastring+="%02d" % (int(period['FCTTIME']['hour']))+"00: "
+        datastring+=period['feelslike']['english']+"F "
+        datastring+=wxcode[period['icon']]+"\n"
 
-    print "FORECAST TO GO HERE"
-    return "FORECAST MISSING\n"
+
+
+
+
+    r = requests.get(('http://api.wunderground.com/api/' + WUKey + '/forecast/q/' + WUState + '/' + WUCity + '.json'))
+    # print r.status_code
+    if r.status_code != 200:
+        return "LONG FORECAST ERROR"
+    longtermwx=r.json()
+
+    for x in xrange(1,4):
+        period=longtermwx['forecast']['simpleforecast']['forecastday'][x]
+        if period['high']['fahrenheit'] <40:
+            datastring += "[R1500]"
+        elif period['high']['fahrenheit'] >65 and period['high']['fahrenheit'] < 85 :
+            datastring += "[G1500]"
+        else:
+            datastring += "[Y1500]"
+        datastring+=period['date']['weekday_short']+" "+period['high']['fahrenheit']+"/"+period['low']['fahrenheit']+" "+wxcode[period['icon']]+"\n"
+
+
+    return datastring
+
+
+def getAstronomy():
+    datastring=""
+    r = requests.get(('http://api.wunderground.com/api/' + WUKey + '/astronomy/q/' + WUState + '/' + WUCity + '.json'))
+    # print r.status_code
+    if (r.status_code != 200):
+        return "Astronomy error"
+    astro = r.json()
+    datastring+=astro['sun_phase']['sunrise']['hour']+astro['sun_phase']['sunrise']['minute']+"\n"
+    datastring+=astro['sun_phase']['sunset']['hour']+astro['sun_phase']['sunset']['minute']
+    return datastring
+
 
 
 def constructheader():
@@ -114,8 +194,8 @@ def getmbtabustimes(stop,routenum="",routecfg=""):
                             if(responsetext!=""):
                                 responsetext +=", "
                             responsetext+=trip.attrib["minutes"]
-                            if(trip.attrib["isDeparture"]!="true"):
-                                responsetext+="*"
+                            # if trip.attrib.has_key("isDeparture"):
+                            #     responsetext+="*"
 
         if(responsetext==""):
             return ""
@@ -133,14 +213,16 @@ def getmbtabustimes(stop,routenum="",routecfg=""):
 
 def formatedAdamsbuses():
     responsetext=""
-    responsetext+="TO: Davis\n"
-    responsetext+="89:"+getmbtabustimes("02730","89","89_0_var1")+" "+getmbtabustimes("02730","89","89_0_var2")
+    responsetext+="[R1500]TO: Davis\n"
+    responsetext+="[R2500]89:"+getmbtabustimes("02730","89","89_0_var1")+" "+getmbtabustimes("02730","89","89_0_var2")
     responsetext+="\n"
-    responsetext+="TO: Sullivan\n"
-    responsetext+="89:"+getmbtabustimes("02702")+"  101: "+getmbtabustimes("05303")
+    responsetext+="[G1500]TO: Sullivan\n"
+    responsetext+="[G2500]89:"+getmbtabustimes("02702")
     responsetext+="\n"
-    responsetext+="TO: Lechmere\n"
-    responsetext+="80: "+getmbtabustimes("02401")
+    responsetext+="[G2500]101: "+getmbtabustimes("05303")
+    responsetext+="\n"
+    responsetext+="[Y1500]TO: Lechmere\n"
+    responsetext+="[Y2500]80: "+getmbtabustimes("02401")
     responsetext+="\n"
     # print "RESPONSE:"
     # print responsetext
@@ -151,16 +233,27 @@ def formatedAdamsbuses():
 def updateCMDCTRL():
     content = "~\n"
     content += constructheader()
-    content += read02238Weather()
+    content += readstoredWeather()
     content += formatedAdamsbuses()
-    content += "COFFEE.PY"
+    # content += "COFFEE.PY"
     writeDWNSTRLEDcmdctrl(content)
     print content
 
 
 
+def updateAstronomy():
+    content=""
+    content += getAstronomy()
 
-def update02238Weather():
+    f = open('/var/www/html/espserve/CMDCTRL/02238astronomy.dat', 'w')
+    f.seek(0)
+    f.write(content)
+    f.truncate()
+    f.close()
+
+
+
+def updateWeather():
     content=""
     content += getcurrentwx()
     content += getforecastwx()
@@ -171,7 +264,7 @@ def update02238Weather():
     f.truncate()
     f.close()
 
-def read02238Weather():
+def readstoredWeather():
     return open('/var/www/html/espserve/CMDCTRL/02238wx.cmd', 'r').read()
 
 def writeDWNSTRLEDcmdctrl(content):
@@ -189,7 +282,11 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument('--buses', action='store_true', help='update buses')
 parser.add_argument('--weather', action='store_true', help='update weather')
+parser.add_argument('--astronomy', action='store_true', help='update astronomy')
+# parser.add_argument('--weather', action='store_true', help='update weather') Do something for coffee...action bots? pass in a CMD
 parser.add_argument('--all', action='store_true', help='update all')
+
+
 
 args = parser.parse_args()
 # print args
@@ -200,13 +297,18 @@ if args.buses:
 
 elif args.weather:
     print "WEATHER"
-    update02238Weather()
+    updateWeather()
+
+elif args.astronomy:
+    print "ASTRONOMY"
+    updateAstronomy()
 
 
 elif args.all:
     print "ALL"
-    update02238Weather()
+    updateWeather()
     updateCMDCTRL()
+    updateAstronomy()
 
 # else:
     # print "NO OPTIONS ALL"
