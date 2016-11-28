@@ -30,7 +30,7 @@ WUCity = "Somerville"
 def getcurrentwx():
     datastring = ""
     r = requests.get(('http://api.wunderground.com/api/' + WUKey + '/conditions/q/' + WUState + '/' + WUCity + '.json'))
-    print r.status_code
+    # print r.status_code
     if (r.status_code != 200):
         return "WX ERROR"
 
@@ -102,7 +102,7 @@ def getmbtabustimes(stop,routenum="",routecfg=""):
     # print "START DECODE"
     try:
         for route in busdata:
-            print route.tag, route.attrib["routeTag"],route.attrib["routeTitle"]
+            # print route.tag, route.attrib["routeTag"],route.attrib["routeTitle"]
             if route.attrib['routeTag'] == routenum or routenum =="":
                 # print "this is a route of interest"
                 for direction in route:
@@ -142,14 +142,14 @@ def formatedAdamsbuses():
     responsetext+="TO: Lechmere\n"
     responsetext+="80: "+getmbtabustimes("02401")
     responsetext+="\n"
-    print "RESPONSE:"
-    print responsetext
+    # print "RESPONSE:"
+    # print responsetext
     return responsetext
 
 
 
 def updateCMDCTRL():
-    content = ""
+    content = "~\n"
     content += constructheader()
     content += read02238Weather()
     content += formatedAdamsbuses()
@@ -192,7 +192,7 @@ parser.add_argument('--weather', action='store_true', help='update weather')
 parser.add_argument('--all', action='store_true', help='update all')
 
 args = parser.parse_args()
-print args
+# print args
 
 if args.buses:
     print "buses only"
@@ -208,8 +208,8 @@ elif args.all:
     update02238Weather()
     updateCMDCTRL()
 
-else:
-    print "NO OPTIONS ALL"
+# else:
+    # print "NO OPTIONS ALL"
     # update02238Weather()
     # updateCMDCTRL()
 
