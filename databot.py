@@ -258,14 +258,14 @@ def updateWeather():
     content += getcurrentwx()
     content += getforecastwx()
 
-    f = open('/var/www/html/espserve/CMDCTRL/02238wx.cmd', 'w')
+    f = open('/var/www/html/espserve/CMDCTRL/02238wx.dat', 'w')
     f.seek(0)
     f.write(content)
     f.truncate()
     f.close()
 
 def readstoredWeather():
-    return open('/var/www/html/espserve/CMDCTRL/02238wx.cmd', 'r').read()
+    return open('/var/www/html/espserve/CMDCTRL/02238wx.dat', 'r').read()
 
 def writeDWNSTRLEDcmdctrl(content):
     f = open('/var/www/html/espserve/CMDCTRL/DWNSTRLEDsign.cmd', 'w')
