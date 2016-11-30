@@ -25,6 +25,16 @@ WUCity = "Somerville"
 # [Y1500]WED 50 OVRCAST
 # [Y1500]THU 50 OVRCAST
 
+def msgchop(text, increment,config=""):
+    response=""
+    for i in range(0,(len(text)+increment),increment):
+        response+=config + text[i:(i+increment)]
+        response+="\n"
+        i+=increment
+    return response
+
+
+
 
 
 
@@ -47,9 +57,9 @@ def getcurrentwx():
     # print "WEATHER is:" + WXjson['current_observation']['weather']
     # print "WXSHORT is:" + WXjson['current_observation']['icon']
     # print "Wind" + str(WXjson['current_observation']['wind_mph']) + " " + str(WXjson['current_observation']['wind_dir'])
-    if int(WXjson['current_observation']['feelslike_f']) <50:
+    if int(float(WXjson['current_observation']['feelslike_f'])) <50:
         datastring += "[R2000]"
-    elif int(WXjson['current_observation']['feelslike_f']) >65 and int(WXjson['current_observation']['feelslike_f']) < 85 :
+    elif int(float(WXjson['current_observation']['feelslike_f'])) >65 and int(float(WXjson['current_observation']['feelslike_f'])) < 85 :
         datastring += "[G2000]"
     else:
         datastring += "[Y2000]"
@@ -60,24 +70,28 @@ def getcurrentwx():
 
     datastring += WXjson['current_observation']['wind_dir']+" @ " + str(WXjson['current_observation']['wind_mph']) + "mph\n"
 
-    # r = requests.get(('http://api.wunderground.com/api/' + WUKey + '/alerts/q/' + WUState + '/' + WUCity + '.json'))
-    r = requests.get(('http://api.wunderground.com/api/' + WUKey + '/alerts/q/ND/Dickinson.json'))
+    r = requests.get(('http://api.wunderground.com/api/' + WUKey + '/alerts/q/' + WUState + '/' + WUCity + '.json'))
+    # r = requests.get(('http://api.wunderground.com/api/' + WUKey + '/alerts/q/ND/Dickinson.json'))
     # print r.status_code
     if (r.status_code != 200):
         return "WX ERROR"
     alerts = r.json()
     for entry in alerts['alerts']:
-        if entry.has_key("description"):
+        if entry.has_key("description") and entry["type"] != "SPE":
             print entry["description"]
-            datastring += "[R1000]"+entry["description"] +"\n"
+            datastring += "[R800]"+entry["description"] +"\n"
             datastring += "[R800]\n"
-            datastring += "[R1000]"+entry["description"] +"\n"
+            datastring += "[R800]"+entry["description"] +"\n"
             datastring += "[R800]\n"
-            datastring += "[R1000]"+entry["description"] +"\n"
+            datastring += "[R800]"+entry["description"] +"\n"
             datastring += "[R800]\n"
-            datastring += "[R1000]"+entry["description"] +"\n"
+            datastring += "[R800]"+entry["description"] +"\n"
             datastring += "[R800]\n"
-            datastring += "[R2000]"+entry["description"] +"\n"
+            datastring += "[R800]"+entry["description"] +"\n"
+            message=entry["message"].replace('\n', ' ').replace('*', '')
+            datastring += msgchop(entry["message"],14,"[R600]")
+
+
 
 
     return datastring
@@ -101,9 +115,9 @@ def getforecastwx():
     # print WXjson
     for x in xrange(1,6):
         period=hourlyWXjson['hourly_forecast'][(x*4)]
-        if int(period['feelslike']['english']) < 40:
+        if int(float(period['feelslike']['english'])) < 40:
             datastring += "[R1000]"
-        elif int(period['feelslike']['english']) >65 and int(period['feelslike']['english']) < 85 :
+        elif int(float(period['feelslike']['english'])) >65 and int(float(period['feelslike']['english'])) < 85 :
             datastring += "[G1000]"
         else:
             datastring += "[Y1000]"
@@ -124,9 +138,9 @@ def getforecastwx():
 
     for x in xrange(1,4):
         period=longtermwx['forecast']['simpleforecast']['forecastday'][x]
-        if period['high']['fahrenheit'] <40:
+        if float(period['high']['fahrenheit']) <40:
             datastring += "[R1500]"
-        elif period['high']['fahrenheit'] >65 and period['high']['fahrenheit'] < 85 :
+        elif float(period['high']['fahrenheit']) >65 and float(period['high']['fahrenheit'] < 85) :
             datastring += "[G1500]"
         else:
             datastring += "[Y1500]"
@@ -152,7 +166,7 @@ def getAstronomy():
 def constructheader():
     lcltime = time.localtime()
     datastring = ""
-    datastring = "GOOD"
+    datastring = "[R2000]GOOD"
     if (lcltime.tm_hour < 12):
         datastring += " MORNING"
     elif (lcltime.tm_hour < 17):
@@ -160,8 +174,8 @@ def constructheader():
     else:
         datastring += " EVENING"
     datastring += "\n"
-    datastring += time.strftime("%a %b %-d") + "\n"
-    datastring += time.strftime("%H:%M") + "\n"
+    datastring += "[R2000]"+time.strftime("%a %b %-d") + "\n"
+    datastring += "[R2000]"+time.strftime("%H:%M") + "\n"
     return datastring
 
 
@@ -214,10 +228,10 @@ def getmbtabustimes(stop,routenum="",routecfg=""):
 def formatedAdamsbuses():
     responsetext=""
     responsetext+="[R1500]TO: Davis\n"
-    responsetext+="[R2500]89:"+getmbtabustimes("02730","89","89_0_var1")+" "+getmbtabustimes("02730","89","89_0_var2")
+    responsetext+="[R2500]89: "+getmbtabustimes("02730","89","89_0_var1")+" "+getmbtabustimes("02730","89","89_0_var2")
     responsetext+="\n"
     responsetext+="[G1500]TO: Sullivan\n"
-    responsetext+="[G2500]89:"+getmbtabustimes("02702")
+    responsetext+="[G2500]89: "+getmbtabustimes("02702")
     responsetext+="\n"
     responsetext+="[G2500]101: "+getmbtabustimes("05303")
     responsetext+="\n"
@@ -275,6 +289,24 @@ def writeDWNSTRLEDcmdctrl(content):
     f.close()
 
 # update02238Weather()
+
+def readstoredStates():
+    d= {}
+    try:
+        with open('/var/www/html/espserve/CMDCTRL/housestates.dat', 'r') as file:
+            for line in file:
+                (key, val) = line.split()
+                d[key] = val
+    except:
+        return None
+    return d
+
+def writeStates(content):
+    f = open('/var/www/html/espserve/CMDCTRL/housestates.cmd', 'w')
+    f.seek(0)
+    f.write(content)
+    f.truncate()
+    f.close()
 
 
 
