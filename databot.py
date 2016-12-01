@@ -3,6 +3,7 @@ __author__ = 'leibert'
 # Get weather data
 import requests
 import time
+import datetime
 import keys
 import argparse
 from xml.etree import ElementTree
@@ -166,8 +167,8 @@ def getAstronomy():
 def constructheader():
     lcltime = time.localtime()
     datastring = ""
-    datastring = "[R2000]GOOD"
-    if (lcltime.tm_hour < 12):
+    datastring = "[R1000]GOOD"
+    if (lcltime.tm_hour < 12) and (lcltime.tm_hour>3):
         datastring += " MORNING"
     elif (lcltime.tm_hour < 17):
         datastring += " AFTERNOON"
@@ -175,7 +176,7 @@ def constructheader():
         datastring += " EVENING"
     datastring += "\n"
     datastring += "[R2000]"+time.strftime("%a %b %-d") + "\n"
-    datastring += "[R2000]"+time.strftime("%H:%M") + "\n"
+    datastring += "[R1000]"+time.strftime("%H:%M") + "\n"
     return datastring
 
 
@@ -218,7 +219,38 @@ def getmbtabustimes(stop,routenum="",routecfg=""):
     except:
         return "ERROR"
 
+def getMBTAalerts():
+    datastring=""
+    r = requests.get(("http://realtime.mbta.com/developer/api/v2/alerts?api_key="+keys.MBTAdev+"&include_access_alerts=false&include_service_alerts=true&format=json"))
+    # print r.status_code
+    if (r.status_code != 200):
+        return "MBTA APIv2 ERROR"
 
+    # print r.headers['content-type']
+    # print r.encoding
+    # print r.text
+    alerts = r.json()
+    for alert in alerts["alerts"]:
+        # try:
+            if alert["effect_name"]=="Shuttle" or alert["effect_name"]=="Delay":
+                for service in alert["affected_services"]["services"]:
+                    if service["route_id"]=="Red" or service["route_id"]=="Orange":
+                        # print time.time()+172800
+                        # print time.time()+86400
+                        # print alert["effect_periods"][0]["effect_start"]
+                        # print str(time.time())
+                        # print alert["effect_periods"][0]["effect_end"]
+                        if (time.time()+86400) > int(alert["effect_periods"][0]["effect_start"]) and time.time() < int(alert["effect_periods"][0]["effect_end"]):
+                            print alert["effect_periods"][0]["effect_start"]
+                            print time.time()
+                            print alert
+                            datastring += msgchop(alert["short_header_text"],14,"[R600]")
+                            break
+
+        # except:
+        #     print "MBTA ALERTS ERROR"
+        #     pass
+    return datastring
 
 
 
@@ -243,12 +275,30 @@ def formatedAdamsbuses():
     return responsetext
 
 
+def updatecoffee():
+    brewedat=getstoredState("coffee")
+
+    diff=datetime.datetime.now()-datetime.datetime.strptime(brewedat, "%Y-%m-%d %H:%M:%S.%f")
+    print diff.seconds
+    minutes = (diff.seconds/60)
+    if minutes <45:
+        return "[G2000]Coffee "+str(minutes)+"m old\n"
+    elif minutes <90:
+        return "[Y2000]Coffee "+str(minutes)+" old\n"
+    return ""
+
+
+
+
+
 
 def updateCMDCTRL():
     content = "~\n"
     content += constructheader()
     content += readstoredWeather()
     content += formatedAdamsbuses()
+    content += getMBTAalerts()
+    content += updatecoffee()
     # content += "COFFEE.PY"
     writeDWNSTRLEDcmdctrl(content)
     print content
@@ -293,21 +343,48 @@ def writeDWNSTRLEDcmdctrl(content):
 def readstoredStates():
     d= {}
     try:
-        with open('/var/www/html/espserve/CMDCTRL/housestates.dat', 'r') as file:
+        # with open('/var/www/html/espserve/CMDCTRL/housestates.dat', 'r') as file:
+        with open('housestates.dat', 'r') as file:
+
             for line in file:
-                (key, val) = line.split()
+                line=line.replace('\n','')
+                (key, val) = line.split(',')
+                if key is None:
+                        continue
                 d[key] = val
     except:
+        print "error parsing states file"
         return None
     return d
 
-def writeStates(content):
-    f = open('/var/www/html/espserve/CMDCTRL/housestates.cmd', 'w')
+def getstoredState(key):
+    d=readstoredStates()
+    if key in d:
+        return d[key]
+    else:
+        return None
+
+def writeStates(dict):
+    # f = open('/var/www/html/espserve/CMDCTRL/housestates.dat', 'w')
+    f = open('housestates.dat', 'w')
+
     f.seek(0)
-    f.write(content)
+
+    for key, value in dict.iteritems():
+        f.write(key+","+value)
+        f.write('\n')
+
     f.truncate()
     f.close()
 
+def updateState(key,value):
+    d=readstoredStates()
+    if d is None:
+        d={}
+    if value == "TS":
+        value = str(datetime.datetime.now())
+    d[key]=value
+    writeStates(d)
 
 
 parser = argparse.ArgumentParser()
@@ -315,6 +392,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--buses', action='store_true', help='update buses')
 parser.add_argument('--weather', action='store_true', help='update weather')
 parser.add_argument('--astronomy', action='store_true', help='update astronomy')
+parser.add_argument('--state', action='store', help='update a house state key=value')
 # parser.add_argument('--weather', action='store_true', help='update weather') Do something for coffee...action bots? pass in a CMD
 parser.add_argument('--all', action='store_true', help='update all')
 
@@ -334,6 +412,12 @@ elif args.weather:
 elif args.astronomy:
     print "ASTRONOMY"
     updateAstronomy()
+
+elif args.state:
+    print "STATE UPDATE"
+    data=args.state.split("=")
+    updateState(data[0], data[1])
+
 
 
 elif args.all:
