@@ -4,13 +4,13 @@ __author__ = 'leibert'
 import requests
 import time
 import datetime
-import keys
 import argparse
 from xml.etree import ElementTree
 from wxcodes import wxcode
 from collections import defaultdict
+import os
 
-WUKey = keys.WUkey
+WUKey = os.getenv("WUKey")
 WUState = "MA"
 WUCity = "Somerville"
 adamsbuses = defaultdict(list)
@@ -223,7 +223,7 @@ def getmbtabustimes(stop,routenum="",routecfg=""):
 
 def getMBTAalerts():
     datastring=""
-    r = requests.get(("http://realtime.mbta.com/developer/api/v2/alerts?api_key="+keys.MBTAdev+"&include_access_alerts=false&include_service_alerts=true&format=json"))
+    r = requests.get(("http://realtime.mbta.com/developer/api/v2/alerts?api_key="+os.getenv("MBTAdev")+"&include_access_alerts=false&include_service_alerts=true&format=json"))
     # print r.status_code
     if (r.status_code != 200):
         return "MBTA APIv2 ERROR"
